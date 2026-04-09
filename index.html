@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Maximumprijzen van benzine en diesel</title>
+  <style>
+    :root { --grid: rgba(255,255,255,.16); --text:#f5f7fb; --muted:#9aa3b2; --line95:#7f8694; --line98:#1f6e6a; --lineDiesel:#ff4b2b; --lineStook:#8b6ef8; --border:#2b63ff; --emim:#5aa2ff; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:#050914; color:var(--text); }
+    .wrap { max-width:1280px; margin:20px auto; padding:0 16px; }
+    .card { background:linear-gradient(180deg,#121521 0%,#091223 100%); border:2px solid var(--border); border-radius:14px; padding:18px; box-shadow:0 18px 50px rgba(0,0,0,.35); }
+    .topbar { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:8px; }
+    h1 { margin:0 0 10px 0; font-size:22px; line-height:1.15; font-weight:800; letter-spacing:-0.02em; }
+    .meta { color:var(--muted); font-size:13px; text-align:right; line-height:1.45; }
+    .legend { display:flex; gap:18px; flex-wrap:wrap; align-items:center; margin-bottom:10px; padding-left:2px; }
+    .legend button { display:flex; align-items:center; gap:8px; background:transparent; color:inherit; border:0; cursor:pointer; padding:4px 0; opacity:.95; font-size:14px; font-weight:700; }
+    .legend button.off { opacity:.45; }
+    .swatch { width:24px; height:4px; border-radius:999px; display:inline-block; }
+    .controls { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:8px 0 14px; }
+    .controls select { background:#0d1017; color:var(--text); border:1px solid rgba(255,255,255,.12); border-radius:8px; padding:10px 12px; font-size:14px; }
+    .contentGrid { display:grid; grid-template-columns:minmax(0,1.45fr) 380px; gap:18px; align-items:start; }
+    #chartWrap { position:relative; width:100%; aspect-ratio:16/9; min-height:420px; }
+    svg { width:100%; height:100%; display:block; overflow:visible; }
+    .axis-label,.tick { fill:rgba(255,255,255,.88); font-size:12px; font-weight:600; }
+    .month-label { fill:rgba(255,255,255,.88); font-size:12px; font-weight:700; }
+    .grid-line { stroke:var(--grid); stroke-width:1; shape-rendering:crispEdges; }
+    .series-line { fill:none; stroke-width:3; stroke-linejoin:round; stroke-linecap:round; }
+    .end-label { font-size:13px; font-weight:800; dominant-baseline:middle; }
+    .tooltip { position:absolute; pointer-events:none; background:rgba(11,13,19,.94); border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:10px 12px; color:var(--text); min-width:160px; box-shadow:0 12px 30px rgba(0,0,0,.3); transform:translate(12px,-12px); display:none; z-index:5; font-size:13px; }
+    .tooltip .date { color:var(--muted); margin-bottom:6px; font-weight:700; }
+    .tooltip .row { display:flex; justify-content:space-between; gap:14px; margin:2px 0; }
+    .tooltip .label { font-weight:700; }
+    .refline { stroke:rgba(125,148,255,.45); stroke-width:2; stroke-dasharray:6 6; }
+    .sideColumn { display:grid; gap:18px; }
+    .weatherPanel,.emimPanel { background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.10); border-radius:12px; padding:14px; min-height:220px; }
+    .weatherPanel h3,.emimPanel h3 { margin:0 0 6px 0; font-size:16px; font-weight:800; }
+    .emimSub { font-size:12px; color:rgba(255,255,255,.68); margin-bottom:12px; line-height:1.4; }
+    .weatherNow { padding:12px; border-radius:10px; background:rgba(255,255,255,.03); margin-bottom:12px; }
+    .weatherTemp { font-size:34px; font-weight:800; line-height:1; margin-bottom:8px; }
+    .weatherDesc { font-size:15px; font-weight:700; margin-bottom:8px; color:rgba(255,255,255,.9); }
+    .weatherMeta { font-size:13px; color:rgba(255,255,255,.72); line-height:1.5; }
+    .weatherHours { display:grid; gap:8px; }
+    .weatherHourItem { display:grid; grid-template-columns:48px 1fr auto; gap:10px; align-items:center; padding:8px 0; border-bottom:1px solid rgba(255,255,255,.08); }
+    .weatherHourItem:last-child { border-bottom:0; }
+    .weatherHourTime { color:rgba(255,255,255,.78); font-weight:700; }
+    .weatherHourCond { color:rgba(255,255,255,.88); }
+    .weatherHourTemp { font-weight:800; }
+    #emimChartWrap { width:100%; min-height:220px; margin-top:8px; }
+    #emimChart { width:100%; height:220px; display:block; }
+    .emimLatest { margin-top:10px; font-size:14px; font-weight:700; color:rgba(255,255,255,.88); }
+    .emimGrid { stroke:rgba(255,255,255,.10); stroke-width:1; }
+    .emimLine { fill:none; stroke:var(--emim); stroke-width:3; stroke-linecap:round; stroke-linejoin:round; }
+    .emimLabel { fill:rgba(255,255,255,.76); font-size:11px; font-weight:700; }
+    .emimValue { fill:var(--emim); font-size:12px; font-weight:800; }
+    @media (max-width:1100px) { .contentGrid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <div class="wrap"><div class="card">
+    <div class="topbar"><div><h1>Maximumprijzen van benzine en diesel</h1><div class="legend" id="legend"></div></div><div class="meta"><div id="updatedAt"></div></div></div>
+    <div class="controls"><select id="rangeSelect"><option value="180">Laatste 6 maanden</option><option value="365" selected>Laatste 12 maanden</option><option value="all">Alles</option></select></div>
+    <div class="contentGrid">
+      <div id="chartWrap"><svg id="chart" viewBox="0 0 1100 620" preserveAspectRatio="xMidYMid meet"></svg><div class="tooltip" id="tooltip"></div></div>
+      <div class="sideColumn">
+        <aside class="weatherPanel"><h3>Weer vandaag</h3><div id="weatherNow" class="weatherNow">Laden...</div><div id="weatherHours" class="weatherHours"></div></aside>
+        <aside class="emimPanel"><h3>EMIM ETF</h3><div class="emimSub">iShares Core MSCI Emerging Markets IMI UCITS ETF (Acc)</div><div id="emimChartWrap"><svg id="emimChart" viewBox="0 0 360 220" preserveAspectRatio="xMidYMid meet"></svg></div><div id="emimLatest" class="emimLatest">Laden...</div></aside>
+      </div>
+    </div>
+  </div></div>
+  <script>
+    const SERIES=[{key:"Benzine 95",color:getCss("--line95"),visible:true},{key:"Benzine 98",color:getCss("--line98"),visible:true},{key:"Diesel",color:getCss("--lineDiesel"),visible:true},{key:"Stookolie (bestelling > 2.000 liter)",color:getCss("--lineStook"),visible:true}];
+    const WEATHER_URL="https://api.open-meteo.com/v1/dwd-icon?latitude=51.2194&longitude=4.4025&current=temperature_2m,apparent_temperature,precipitation,wind_speed_10m,weather_code&hourly=temperature_2m,precipitation_probability,weather_code&forecast_days=1&timezone=Europe%2FBrussels";
+    const state={data:[],range:"365",refreshMs:15*60*1000};
+    const svg=document.getElementById("chart"), tooltip=document.getElementById("tooltip"), rangeSelect=document.getElementById("rangeSelect"), updatedAt=document.getElementById("updatedAt");
+    function getCss(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim();}
+    function euro(v){return "€"+Number(v).toFixed(3).replace(".",",");}
+    function euro2(v){return "€"+Number(v).toFixed(2).replace(".",",");}
+    function prettyDateISO(iso){const d=new Date(iso+"T00:00:00"); return new Intl.DateTimeFormat("nl-BE",{day:"numeric",month:"long",year:"numeric"}).format(d);}
+    function monthShort(iso){const d=new Date(iso+"T00:00:00"); return new Intl.DateTimeFormat("nl-BE",{month:"short"}).format(d).replace(".","");}
+    function normalize(rows){return rows.map(r=>{const o={date:r["date"]||r["Datum"]||r["Date"]||r[""]}; Object.keys(r).forEach(k=>{if(k&&!["date","Datum","Date",""] .includes(k)){const num=Number(String(r[k]).replace(",",".")); o[k]=Number.isFinite(num)?num:null;}}); return o;}).filter(r=>r.date).sort((a,b)=>a.date.localeCompare(b.date));}
+    function filteredData(){ if(state.range==="all") return state.data; const days=Number(state.range); const cutoff=new Date(state.data[state.data.length-1].date+"T00:00:00"); cutoff.setDate(cutoff.getDate()-days+1); const iso=cutoff.toISOString().slice(0,10); return state.data.filter(d=>d.date>=iso); }
+    function buildLegend(){ const el=document.getElementById("legend"); el.innerHTML=""; SERIES.forEach(s=>{ const btn=document.createElement("button"); btn.className=s.visible?"":"off"; btn.innerHTML=`<span class="swatch" style="background:${s.color}"></span><span>${s.key}</span>`; btn.onclick=()=>{s.visible=!s.visible; buildLegend(); render();}; el.appendChild(btn);}); }
+    function linePath(points){ if(!points.length) return ""; return points.map((p,i)=>`${i?"L":"M"}${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" "); }
+    function render(){
+      const data=filteredData(); if(!data.length) return;
+      const W=1100,H=620,m={top:12,right:110,bottom:60,left:72},iw=W-m.left-m.right,ih=H-m.top-m.bottom;
+      const visibleSeries=SERIES.filter(s=>s.visible);
+      const values=data.flatMap(d=>visibleSeries.map(s=>d[s.key]).filter(v=>v!=null));
+      const minVal=Math.floor((Math.min(...values)-0.05)*10)/10, maxVal=Math.ceil((Math.max(...values)+0.05)*10)/10;
+      const x=i=>m.left+(i/Math.max(1,data.length-1))*iw, y=v=>m.top+(1-(v-minVal)/Math.max(0.0001,maxVal-minVal))*ih;
+      svg.innerHTML="";
+      const yTicks=[]; for(let t=Math.floor(minVal*5)/5;t<=maxVal+0.0001;t+=0.2) yTicks.push(Number(t.toFixed(1)));
+      yTicks.forEach(t=>{const yy=y(t); svg.appendChild(el("line",{x1:m.left,y1:yy,x2:W-m.right+20,y2:yy,class:"grid-line"})); const txt=el("text",{x:8,y:yy+4,class:"tick"}); txt.textContent="€"+String(Number(t.toFixed(1))).replace(".",","); svg.appendChild(txt);});
+      const monthIdx=[]; let prevMonth=""; data.forEach((d,i)=>{const month=d.date.slice(0,7); if(month!==prevMonth){monthIdx.push(i); prevMonth=month;}});
+      monthIdx.forEach(i=>{const d=data[i],xx=x(i); svg.appendChild(el("line",{x1:xx,y1:H-m.bottom,x2:xx,y2:H-m.bottom+6,stroke:"rgba(255,255,255,.6)"})); const t1=el("text",{x:xx,y:H-m.bottom+26,"text-anchor":"middle",class:"month-label"}); t1.textContent=monthShort(d.date); svg.appendChild(t1); if(d.date.endsWith("-01")||d.date.slice(5,7)==="01"){ const t2=el("text",{x:xx,y:H-m.bottom+42,"text-anchor":"middle",class:"axis-label"}); t2.textContent=d.date.slice(0,4); svg.appendChild(t2);} });
+      visibleSeries.forEach(s=>{const pts=data.map((d,i)=>d[s.key]==null?null:{x:x(i),y:y(d[s.key]),value:d[s.key],date:d.date}).filter(Boolean); svg.appendChild(el("path",{d:linePath(pts),class:"series-line",stroke:s.color})); const last=pts[pts.length-1]; if(last){svg.appendChild(el("circle",{cx:last.x,cy:last.y,r:5.5,fill:s.color})); const label=el("text",{x:last.x+14,y:last.y+1,fill:s.color,class:"end-label"}); label.textContent=euro(last.value); svg.appendChild(label);} });
+      const overlay=el("rect",{x:m.left,y:m.top,width:iw,height:ih,fill:"transparent"});
+      overlay.addEventListener("mousemove",(ev)=>onHover(ev,data,x,m,iw));
+      overlay.addEventListener("mouseleave",()=>{tooltip.style.display="none"; const old=svg.querySelector("#hoverLine"); if(old) old.remove();});
+      svg.appendChild(overlay);
+      updatedAt.textContent="Laatste datapunt: "+prettyDateISO(data[data.length-1].date);
+    }
+    function onHover(ev,data,x,m,iw){
+      const pt=svg.createSVGPoint(); pt.x=ev.clientX; pt.y=ev.clientY; const loc=pt.matrixTransform(svg.getScreenCTM().inverse());
+      const ratio=Math.max(0,Math.min(1,(loc.x-m.left)/iw)); const idx=Math.round(ratio*(data.length-1)); const row=data[idx]; const cx=x(idx);
+      let hoverLine=svg.querySelector("#hoverLine"); if(!hoverLine){hoverLine=el("line",{id:"hoverLine",class:"refline"}); svg.appendChild(hoverLine);} 
+      hoverLine.setAttribute("x1",cx); hoverLine.setAttribute("x2",cx); hoverLine.setAttribute("y1",m.top); hoverLine.setAttribute("y2",560);
+      tooltip.innerHTML=`<div class="date">${prettyDateISO(row.date)}</div>${SERIES.filter(s=>s.visible&&row[s.key]!=null).map(s=>`<div class="row"><span class="label" style="color:${s.color}">${s.key}</span><span>${euro(row[s.key])}</span></div>`).join("")}`;
+      tooltip.style.display="block";
+      const wrapRect=document.getElementById("chartWrap").getBoundingClientRect();
+      tooltip.style.left=(ev.clientX-wrapRect.left+10)+"px"; tooltip.style.top=(ev.clientY-wrapRect.top-10)+"px";
+    }
+    function el(tag,attrs={}){const n=document.createElementNS("http://www.w3.org/2000/svg",tag); Object.entries(attrs).forEach(([k,v])=>n.setAttribute(k,v)); return n;}
+    function parseCsv(text){ const lines=text.trim().split(/\r?\n/); const headers=splitCsvLine(lines[0]); return lines.slice(1).map(line=>{const parts=splitCsvLine(line); const obj={}; headers.forEach((h,i)=>obj[h]=parts[i]??""); return obj;}); }
+    function splitCsvLine(line){ const out=[]; let cur="",inQuotes=false; for(let i=0;i<line.length;i++){const ch=line[i]; if(ch==='"'){ if(inQuotes&&line[i+1]==='"'){cur+='"'; i++;} else inQuotes=!inQuotes; } else if(ch===','&&!inQuotes){ out.push(cur); cur=""; } else cur+=ch;} out.push(cur); return out; }
+    async function loadAndRender(){ const res=await fetch(`dataset.csv?t=${Date.now()}`,{cache:"no-store"}); const txt=await res.text(); state.data=normalize(parseCsv(txt)); render(); }
+    function weatherLabel(code){ const map={0:"Helder",1:"Overwegend helder",2:"Licht bewolkt",3:"Bewolkt",45:"Mist",48:"Rijpnevel",51:"Lichte motregen",53:"Motregen",55:"Dichte motregen",61:"Lichte regen",63:"Regen",65:"Zware regen",71:"Lichte sneeuw",73:"Sneeuw",75:"Zware sneeuw",80:"Lichte buien",81:"Buien",82:"Zware buien",95:"Onweer"}; return map[code]||"Onbekend"; }
+    function hourPart(iso){ return iso.slice(11,16); }
+    async function loadWeather(){ try{ const res=await fetch(WEATHER_URL,{cache:"no-store"}); if(!res.ok) throw new Error("Weerdata kon niet geladen worden"); const data=await res.json(); const now=data.current, weatherNow=document.getElementById("weatherNow"), weatherHours=document.getElementById("weatherHours"); weatherNow.innerHTML=`<div class="weatherTemp">${Math.round(now.temperature_2m)}°</div><div class="weatherDesc">${weatherLabel(now.weather_code)}</div><div class="weatherMeta">Gevoel: ${Math.round(now.apparent_temperature)}°<br>Wind: ${Math.round(now.wind_speed_10m)} km/u<br>Neerslag nu: ${Number(now.precipitation||0).toFixed(1).replace(".",",")} mm</div>`; const times=data.hourly.time,temps=data.hourly.temperature_2m,probs=data.hourly.precipitation_probability,codes=data.hourly.weather_code; const currentHour=new Date().getHours(); const todayItems=[]; for(let i=0;i<times.length;i++){const hour=Number(times[i].slice(11,13)); if(hour>=currentHour&&todayItems.length<6){ todayItems.push({time:times[i],temp:temps[i],prob:probs[i],code:codes[i]}); }} weatherHours.innerHTML=todayItems.map(item=>`<div class="weatherHourItem"><div class="weatherHourTime">${hourPart(item.time)}</div><div class="weatherHourCond">${weatherLabel(item.code)} · ${item.prob??0}%</div><div class="weatherHourTemp">${Math.round(item.temp)}°</div></div>`).join(""); } catch(e){ const weatherNow=document.getElementById("weatherNow"), weatherHours=document.getElementById("weatherHours"); if(weatherNow) weatherNow.textContent="Weerdata tijdelijk niet beschikbaar."; if(weatherHours) weatherHours.innerHTML=""; console.error(e); } }
+    function parseSimpleCsv(text){ const lines=text.trim().split(/\r?\n/); const headers=lines[0].split(","); return lines.slice(1).map(line=>{const parts=line.split(","); const obj={}; headers.forEach((h,i)=>obj[h]=parts[i]??""); return obj;});}
+    function drawEmimChart(rows){ const s=document.getElementById("emimChart"), latest=document.getElementById("emimLatest"); if(!s||!rows.length) return; const data=rows.map(r=>({date:r.date,price:Number(r.price)})).filter(r=>Number.isFinite(r.price)&&r.price>0).sort((a,b)=>a.date.localeCompare(b.date)); if(!data.length){ latest.textContent="Geen EMIM-data beschikbaar."; return; } const W=360,H=220,m={top:14,right:18,bottom:28,left:36},iw=W-m.left-m.right,ih=H-m.top-m.bottom; const min=Math.min(...data.map(d=>d.price)),max=Math.max(...data.map(d=>d.price)),x=i=>m.left+(i/Math.max(1,data.length-1))*iw,y=v=>m.top+(1-(v-min)/Math.max(0.0001,max-min||1))*ih; s.innerHTML=""; for(let i=0;i<4;i++){const yy=m.top+(ih/3)*i; const line=document.createElementNS("http://www.w3.org/2000/svg","line"); line.setAttribute("x1",m.left); line.setAttribute("x2",W-m.right); line.setAttribute("y1",yy); line.setAttribute("y2",yy); line.setAttribute("class","emimGrid"); s.appendChild(line);} const path=document.createElementNS("http://www.w3.org/2000/svg","path"); path.setAttribute("d",data.map((p,i)=>`${i===0?"M":"L"}${x(i)},${y(p.price)}`).join(" ")); path.setAttribute("class","emimLine"); s.appendChild(path); const last=data[data.length-1], cx=x(data.length-1), cy=y(last.price); const dot=document.createElementNS("http://www.w3.org/2000/svg","circle"); dot.setAttribute("cx",cx); dot.setAttribute("cy",cy); dot.setAttribute("r",4); dot.setAttribute("fill",getCss("--emim")); s.appendChild(dot); const val=document.createElementNS("http://www.w3.org/2000/svg","text"); val.setAttribute("x",cx-6); val.setAttribute("y",cy-10); val.setAttribute("text-anchor","end"); val.setAttribute("class","emimValue"); val.textContent=euro2(last.price); s.appendChild(val); const leftLabel=document.createElementNS("http://www.w3.org/2000/svg","text"); leftLabel.setAttribute("x",m.left); leftLabel.setAttribute("y",H-8); leftLabel.setAttribute("class","emimLabel"); leftLabel.textContent=data[0].date; s.appendChild(leftLabel); const rightLabel=document.createElementNS("http://www.w3.org/2000/svg","text"); rightLabel.setAttribute("x",W-m.right); rightLabel.setAttribute("y",H-8); rightLabel.setAttribute("text-anchor","end"); rightLabel.setAttribute("class","emimLabel"); rightLabel.textContent=last.date; s.appendChild(rightLabel); latest.textContent=`Laatste koers: ${euro2(last.price)}`; }
+    async function loadEmim(){ try{ const res=await fetch(`./emim.csv?t=${Date.now()}`,{cache:"no-store"}); if(!res.ok) throw new Error("EMIM-data kon niet geladen worden"); const txt=await res.text(); drawEmimChart(parseSimpleCsv(txt)); } catch(e){ const latest=document.getElementById("emimLatest"); if(latest) latest.textContent="EMIM-data tijdelijk niet beschikbaar."; console.error(e); } }
+    buildLegend(); rangeSelect.addEventListener("change",()=>{state.range=rangeSelect.value; render();}); loadAndRender(); loadWeather(); loadEmim(); setInterval(loadAndRender,state.refreshMs); setInterval(loadWeather,state.refreshMs); setInterval(loadEmim,state.refreshMs);
+  </script>
+</body>
+</html>
